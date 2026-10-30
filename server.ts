@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 
@@ -11,13 +12,32 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+// Health check endpoint for deployment monitoring
+app.get('/api/health', (_req, res) => {
+  const distPath = path.resolve(__dirname, 'dist');
+  res.json({
+    status: 'ok',
+    hasKey: !!(process.env.GEMINI_API_KEY || process.env.API_KEY),
+    env: process.env.NODE_ENV || 'development',
+    hasDist: fs.existsSync(distPath),
+    time: new Date().toISOString()
+  });
+});
+
 // Server-side Gemini client factory
 const getAIClient = () => {
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     throw new Error('API Key not found on server environment.');
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ 
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
+    }
+  });
 };
 
 // Clean JSON extraction helper
@@ -38,8 +58,8 @@ const extractJSON = (text: string): any => {
   }
 };
 
-// Fast timeout wrapper to prevent hanging or infinite SDK retry backoffs
-const callWithTimeout = <T>(promise: Promise<T>, timeoutMs = 3800): Promise<T> => {
+// Resilient timeout wrapper to prevent hanging on network delays
+const callWithTimeout = <T>(promise: Promise<T>, timeoutMs = 12000): Promise<T> => {
   let timer: NodeJS.Timeout;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timer = setTimeout(() => reject(new Error('AI generation timed out')), timeoutMs);
@@ -143,17 +163,14 @@ Job Description:
 ${jobDesc.slice(0, 2000)}
 `;
 
-    // Strict 3.8s timeout so users NEVER wait or hang
     const response = await callWithTimeout(
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.2,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const rawText = response.text || '';
@@ -258,11 +275,9 @@ Output valid JSON:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.3,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const rawText = response.text || '';
@@ -359,11 +374,9 @@ Output valid JSON array:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.3,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const rawText = response.text || '';
@@ -435,11 +448,9 @@ Output valid JSON:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.3,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const result = extractJSON(response.text || '{}');
@@ -488,11 +499,9 @@ Output valid JSON:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.4,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const result = extractJSON(response.text || '{}');
@@ -547,11 +556,9 @@ Output valid JSON array:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          temperature: 0.3,
           responseMimeType: 'application/json'
         }
-      }),
-      3800
+      })
     );
 
     const result = extractJSON(response.text || '[]');
@@ -667,11 +674,7 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
-        config: {
-          temperature: 0.6,
-        }
-      }),
-      3800
+      })
     );
 
     const reply = (response.text || '').replace(/[*_#`]/g, '').trim();
@@ -700,7 +703,9 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
    Vite Dev Middleware / Production Static Serving
 ------------------------------------------------------------- */
 async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production';
+  const distPath = path.resolve(__dirname, 'dist');
+  const hasDist = fs.existsSync(distPath);
+  const isProd = process.env.NODE_ENV === 'production' || (hasDist && process.env.NODE_ENV !== 'development');
 
   if (!isProd) {
     const { createServer } = await import('vite');
@@ -710,9 +715,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
+    console.log(`[Jobsy Production] Serving static build from ${distPath}`);
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    // Safe Express 5 SPA catch-all (avoids path-to-regexp PathError on '*')
+    app.use((_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   }

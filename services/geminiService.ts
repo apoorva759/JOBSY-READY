@@ -1,5 +1,4 @@
 import { 
-  AIResponse, 
   GroundingChunk, 
   ResumeAnalysisData, 
   RoadmapData, 
@@ -8,6 +7,28 @@ import {
   Question
 } from "../types";
 
+const safePost = async (url: string, body: any): Promise<any> => {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const rawText = await response.text();
+  let json: any = null;
+  try {
+    json = JSON.parse(rawText);
+  } catch {
+    throw new Error(`Server returned non-JSON response (${response.status})`);
+  }
+
+  if (!response.ok) {
+    throw new Error(json?.error || `Server request failed with status ${response.status}`);
+  }
+
+  return json;
+};
+
 /**
  * 1. ATS & Resume Match Analysis (Server Proxy)
  */
@@ -15,18 +36,7 @@ export const analyzeResumeMatch = async (
   resume: string, 
   jobDesc: string
 ): Promise<{ data: ResumeAnalysisData; rawText: string }> => {
-  const response = await fetch('/api/resume/match', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ resume, jobDesc }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Resume analysis failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/resume/match', { resume, jobDesc });
 };
 
 /**
@@ -35,18 +45,7 @@ export const analyzeResumeMatch = async (
 export const generateCareerRoadmap = async (
   targetRole: string
 ): Promise<{ data: RoadmapData; rawText: string; groundingChunks?: GroundingChunk[] }> => {
-  const response = await fetch('/api/career/roadmap', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ targetRole }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Career roadmap failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/career/roadmap', { targetRole });
 };
 
 /**
@@ -55,18 +54,7 @@ export const generateCareerRoadmap = async (
 export const generateInterviewGuide = async (
   role: string
 ): Promise<{ questions: InterviewQuestionItem[]; rawText: string; groundingChunks?: GroundingChunk[] }> => {
-  const response = await fetch('/api/interview/guide', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Interview guide generation failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/interview/guide', { role });
 };
 
 /**
@@ -77,18 +65,7 @@ export const evaluateInterviewAnswer = async (
   userAnswer: string,
   role: string
 ): Promise<{ score: number; feedback: string; improvements: string[]; idealAnswer: string }> => {
-  const response = await fetch('/api/interview/evaluate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, userAnswer, role }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Answer evaluation failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/interview/evaluate', { question, userAnswer, role });
 };
 
 /**
@@ -99,18 +76,7 @@ export const generateOutreachKit = async (
   targetCompany?: string,
   userHighlight?: string
 ): Promise<OutreachData> => {
-  const response = await fetch('/api/outreach/kit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, targetCompany, userHighlight }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Outreach generation failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/outreach/kit', { role, targetCompany, userHighlight });
 };
 
 /**
@@ -119,16 +85,5 @@ export const generateOutreachKit = async (
 export const generateCustomAptitudeQuestions = async (
   domainOrRole: string
 ): Promise<Question[]> => {
-  const response = await fetch('/api/aptitude/custom', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domainOrRole }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Custom test generation failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return safePost('/api/aptitude/custom', { domainOrRole });
 };
