@@ -1,0 +1,11 @@
+{
+  "name": "Jobsy by Apoorv Saxena",
+  "description": "A professional AI-powered career tool featuring Resume Matching, Aptitude Testing, and Interview Preparation, developed by Apoorv Saxena.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

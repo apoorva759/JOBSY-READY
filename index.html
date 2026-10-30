@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jobsy by Apoorv Saxena - AI Career Accelerator</title>
+    <meta name="description" content="A professional AI-powered career tool featuring Resume Matching, Aptitude Testing, and Interview Preparation, developed by Apoorv Saxena.">
+    <meta property="og:title" content="Jobsy by Apoorv Saxena - AI Career Accelerator">
+    <meta property="og:description" content="A professional AI-powered career tool featuring Resume Matching, Aptitude Testing, and Interview Preparation, developed by Apoorv Saxena.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'Montserrat', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              brand: {
+                50: '#ecfdf5',
+                100: '#d1fae5',
+                200: '#a7f3d0',
+                300: '#6ee7b7',
+                400: '#34d399',
+                500: '#10b981',
+                600: '#059669',
+                700: '#047857',
+                800: '#065f46',
+                900: '#064e3b',
+                950: '#022c22',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Montserrat:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --mesh-primary: rgba(16, 185, 129, 0.08);
+            --mesh-secondary: rgba(59, 130, 246, 0.06);
+            --mesh-tertiary: rgba(139, 92, 246, 0.05);
+        }
+        .dark {
+            --mesh-primary: rgba(16, 185, 129, 0.12);
+            --mesh-secondary: rgba(59, 130, 246, 0.09);
+            --mesh-tertiary: rgba(139, 92, 246, 0.08);
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', 'Montserrat', sans-serif;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* High-performance Dynamic Canvas Mesh */
+        .ambient-mesh {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+            background-image: 
+                radial-gradient(at 10% 20%, var(--mesh-primary) 0, transparent 45%), 
+                radial-gradient(at 90% 15%, var(--mesh-secondary) 0, transparent 50%), 
+                radial-gradient(at 80% 85%, var(--mesh-tertiary) 0, transparent 40%),
+                radial-gradient(at 20% 80%, var(--mesh-primary) 0, transparent 45%);
+            filter: blur(60px);
+        }
+
+        /* Subtle grid background */
+        .grid-matrix {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-size: 40px 40px;
+            pointer-events: none;
+            mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+            -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+        }
+        .light .grid-matrix {
+            background-image: linear-gradient(to right, rgba(16, 185, 129, 0.04) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+        }
+        .dark .grid-matrix {
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+
+        /* Glassmorphism surface */
+        .glass-panel {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        /* High-visibility Laser beam scanner animation */
+        @keyframes laser-sweep {
+          0% { top: 0%; opacity: 0; }
+          10% { opacity: 1; }
+          50% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        .laser-sweep-beam {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: linear-gradient(90deg, transparent 5%, #10b981 25%, #38bdf8 75%, transparent 95%);
+          box-shadow: 0 0 20px #10b981, 0 0 35px #38bdf8, 0 2px 10px rgba(16, 185, 129, 0.8);
+          animation: laser-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          z-index: 30;
+          pointer-events: none;
+        }
+
+        .scanning-radar-grid {
+          background-size: 20px 20px;
+          background-image: 
+            linear-gradient(to right, rgba(16, 185, 129, 0.15) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(16, 185, 129, 0.15) 1px, transparent 1px);
+        }
+
+        /* Number counter animation support */
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        
+        /* Modern scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(16, 185, 129, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-emerald-50/60 via-slate-50 to-teal-50/40 text-slate-800 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100 antialiased selection:bg-emerald-500 selection:text-white transition-colors duration-300">
+    <div class="ambient-mesh"></div>
+    <div class="grid-matrix"></div>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
