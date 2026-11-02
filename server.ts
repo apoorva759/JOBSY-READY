@@ -699,6 +699,11 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
 });
 
 
+// Return a JSON response for unknown API paths instead of falling through to the SPA.
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API route not found.' });
+});
+
 /* -------------------------------------------------------------
    Vite Dev Middleware / Production Static Serving
 ------------------------------------------------------------- */
@@ -731,7 +736,8 @@ async function startServer() {
 export default app;
 
 // Vercel imports this Express app as a function; other Node hosts start the listener.
-if (process.env.VERCEL !== '1') {
+const isDirectExecution = process.argv[1] != null && path.resolve(process.argv[1]) === __filename;
+if (isDirectExecution) {
   startServer().catch((err) => {
     console.error('Failed to start server:', err);
     process.exit(1);
