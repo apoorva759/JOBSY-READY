@@ -1,4 +1,4 @@
-import app from './server';
+import app from './server.js';
 
 /**
  * Build a Vercel function that forwards one concrete API path to the shared
