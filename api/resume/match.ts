@@ -86,7 +86,7 @@ const getBullets = (resume: string) => {
 
 const GERUND_FORMS: Record<string, string> = {
   architected: 'architecting', designed: 'designing', built: 'building',
-  developed: 'developing', implemented: 'implementing', fine-tuned: 'fine-tuning',
+  developed: 'developing', implemented: 'implementing', 'fine-tuned': 'fine-tuning',
   reduced: 'reducing', improved: 'improving', increased: 'increasing',
   created: 'creating', automated: 'automating', optimized: 'optimizing',
   led: 'leading', launched: 'launching', mentored: 'mentoring',
