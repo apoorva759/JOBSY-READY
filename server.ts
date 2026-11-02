@@ -433,7 +433,6 @@ questions. Never invent candidate achievements or metrics; sample answers should
         config: {
           responseMimeType: 'application/json',
           responseSchema: interviewGuideSchema,
-          maxOutputTokens: 1800,
           abortSignal
         }
       })
@@ -541,7 +540,6 @@ Output valid JSON:
         config: {
           responseMimeType: 'application/json',
           responseSchema: interviewEvaluationSchema,
-          maxOutputTokens: 800,
           abortSignal
         }
       })
@@ -646,7 +644,6 @@ Question numbers must run from 1 through 5. Do not include markdown.
         config: {
           responseMimeType: 'application/json',
           responseSchema: customAptitudeSchema,
-          maxOutputTokens: 1500,
           abortSignal
         }
       })
@@ -814,7 +811,7 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
-        config: { maxOutputTokens: 256, abortSignal }
+        config: { abortSignal }
       })
     );
 
