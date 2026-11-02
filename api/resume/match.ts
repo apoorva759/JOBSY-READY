@@ -84,39 +84,32 @@ const getBullets = (resume: string) => {
     .slice(0, 2);
 };
 
-const GERUND_FORMS: Record<string, string> = {
-  architected: 'architecting', designed: 'designing', built: 'building',
-  developed: 'developing', implemented: 'implementing', 'fine-tuned': 'fine-tuning',
-  reduced: 'reducing', improved: 'improving', increased: 'increasing',
-  created: 'creating', automated: 'automating', optimized: 'optimizing',
-  led: 'leading', launched: 'launching', mentored: 'mentoring',
-  delivered: 'delivering', deployed: 'deploying', integrated: 'integrating',
-  saved: 'saving', managed: 'managing', established: 'establishing',
-  migrated: 'migrating', maintained: 'maintaining', drove: 'driving',
-  boosted: 'boosting', raised: 'raising', cut: 'cutting', authored: 'authoring'
-};
-
 const rewriteBullet = (original: string) => {
   const sentence = original.trim().replace(/[.!?]+$/, '');
   const outcome = sentence.match(/^(.*?),\s*(boosting|increasing|improving|raising|reducing|cutting|saving|accelerating|growing|driving)\s+(.+)$/i);
   if (outcome) {
     const initiative = outcome[1].trim();
-    const firstSpace = initiative.indexOf(' ');
-    const firstVerb = firstSpace < 0 ? initiative : initiative.slice(0, firstSpace);
-    const remainder = firstSpace < 0 ? '' : initiative.slice(firstSpace + 1);
-    const gerund = GERUND_FORMS[firstVerb.toLowerCase()];
-    const byPhrase = gerund ? gerund + (remainder ? ' ' + remainder : '') : 'delivering ' + initiative;
     const outcomeVerb: Record<string, string> = {
       boosting: 'Improved', increasing: 'Increased', improving: 'Improved',
       raising: 'Raised', reducing: 'Reduced', cutting: 'Cut', saving: 'Saved',
       accelerating: 'Accelerated', growing: 'Grew', driving: 'Drove'
     };
-    return outcomeVerb[outcome[2].toLowerCase()] + ' ' + outcome[3].trim() + ' by ' + byPhrase + '.';
+    const action = initiative.charAt(0).toLowerCase() + initiative.slice(1);
+    return outcomeVerb[outcome[2].toLowerCase()] + ' ' + outcome[3].trim() + '; ' + action + '.';
   }
 
-  const impactFirst = sentence.match(/^(reduced|improved|increased|saved|raised|cut|grew|drove|delivered)\s+(.+?)\s+(?:using|utilizing|with|through)\s+(.+)$/i);
+  const impactFirst = sentence.match(/^(reduced|improved|increased|saved|raised|cut|grew|drove|delivered)\s+(.+?)\s+(using|utilizing|with|through)\s+(.+)$/i);
   if (impactFirst) {
-    return impactFirst[1][0].toUpperCase() + impactFirst[1].slice(1) + ' ' + impactFirst[2].trim() + ' by using ' + impactFirst[3].trim() + '.';
+    const connector = impactFirst[3].toLowerCase() === 'utilizing'
+      ? 'using'
+      : impactFirst[3].toLowerCase();
+    return impactFirst[1][0].toUpperCase() + impactFirst[1].slice(1) + ' '
+      + impactFirst[2].trim() + ' ' + connector + ' ' + impactFirst[4].trim() + '.';
+  }
+
+  const implementation = sentence.match(/^(.*)\s+using\s+(.+)$/i);
+  if (implementation) {
+    return implementation[1].trim() + ' with ' + implementation[2].trim() + '.';
   }
 
   return sentence + '.';
