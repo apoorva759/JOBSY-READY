@@ -22,11 +22,11 @@ interface ResumeMatchViewProps {
 }
 
 const SCAN_STAGES = [
-  "Parsing tokens & structure...",
-  "Cross-referencing core requirements...",
-  "Calculating ATS semantic match...",
-  "Synthesizing Google XYZ bullet optimizations...",
-  "Finalizing executive report..."
+  "Parsing resume sections...",
+  "Matching recognized job keywords...",
+  "Scoring keyword overlap and ATS structure...",
+  "Rewriting bullets without adding claims...",
+  "Finalizing the report..."
 ];
 
 const ResumeMatchView: React.FC<ResumeMatchViewProps> = ({
@@ -129,7 +129,7 @@ const ResumeMatchView: React.FC<ResumeMatchViewProps> = ({
             <span>High-Speed ATS Resume Scanner & Match Engine</span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Real-time keyword parsing, ATS parseability score, and Google XYZ impact bullet revisions.
+            Real-time keyword analysis, ATS parseability scoring, and fact-preserving bullet rewrites.
           </p>
         </div>
 
@@ -460,7 +460,7 @@ const ResumeMatchView: React.FC<ResumeMatchViewProps> = ({
                     <span>Executive Bullet Point Rewriter</span>
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Transformed using the Google XYZ Formula: <em className="text-slate-700 dark:text-slate-300">"Accomplished [X], as measured by [Y], by doing [Z]"</em>
+                    Rewrites use measurable outcomes from your source text; unverified metrics are never added.
                   </p>
                 </div>
               </div>
@@ -480,7 +480,7 @@ const ResumeMatchView: React.FC<ResumeMatchViewProps> = ({
                       {/* Improved */}
                       <div className="space-y-1.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <span>Optimized High-Impact Revision</span>
+                          <span>{/\d|%|\$/.test(rewrite.original) ? 'Metric-led revision' : 'Fact-preserving revision'}</span>
                         </span>
                         <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-100 font-medium leading-relaxed">
                           {rewrite.improved}
