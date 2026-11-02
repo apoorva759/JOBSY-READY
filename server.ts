@@ -40,6 +40,21 @@ const getAIClient = () => {
   });
 };
 
+const logAIError = (feature: string, error: unknown) => {
+  const details = error && typeof error === 'object' ? error as {
+    name?: string;
+    message?: string;
+    status?: number;
+    code?: string;
+  } : {};
+  console.error(`[gemini:${feature}]`, {
+    name: details.name || 'Error',
+    status: details.status,
+    code: details.code,
+    message: details.message || String(error)
+  });
+};
+
 // Clean JSON extraction helper
 const extractJSON = (text: string): any => {
   try {
@@ -351,11 +366,61 @@ Output valid JSON:
     const data = extractJSON(rawText);
     return res.json({ data, rawText });
   } catch (err: any) {
-    console.log('Career roadmap using instant blueprint engine:', err.message);
+    logAIError('career-roadmap', err);
+    if (/\b(data|analyst|analytics|business intelligence|sql)\b/i.test(targetRole)) {
+      return res.json({
+        data: {
+          targetRole,
+          salaryRange: 'Varies by location and experience; verify current local market data.',
+          timeline: [
+            {
+              phase: 'Phase 1: Analytics Foundations',
+              duration: 'Months 1 - 3',
+              focus: 'Build reliable SQL, spreadsheet, statistics, and data-quality skills around real business questions.',
+              skills: ['SQL joins, aggregation, and window functions', 'Descriptive statistics and experiment basics', 'Data cleaning and metric definitions'],
+              projects: ['Analyze a public dataset and document the question, assumptions, checks, and findings.'],
+              certificationsOrCourses: ['Practice SQL and statistics with current exercises; choose a credential only if local employers value it.']
+            },
+            {
+              phase: 'Phase 2: Analysis and Reporting',
+              duration: 'Months 4 - 6',
+              focus: 'Create repeatable analyses and communicate findings through clear dashboards and written summaries.',
+              skills: ['Python with pandas', 'Power BI, Tableau, or a locally common BI tool', 'Data validation and reproducible workflows'],
+              projects: ['Build a dashboard with documented definitions, filters, and validation checks.'],
+              certificationsOrCourses: ['Complete a practical course in the BI tool most common in target job postings.']
+            },
+            {
+              phase: 'Phase 3: Portfolio Capstone',
+              duration: 'Months 7 - 9',
+              focus: 'Show an end-to-end analysis from a specific business question to a defensible recommendation.',
+              skills: ['Cohort and funnel analysis', 'Data storytelling', 'Git and project documentation'],
+              projects: ['Publish a reproducible analysis with source notes, quality checks, visualizations, and limitations.'],
+              certificationsOrCourses: ['Review examples of strong analytics portfolios and refine one project based on feedback.']
+            },
+            {
+              phase: 'Phase 4: Interview and Job Preparation',
+              duration: 'Months 10 - 12',
+              focus: 'Practice role-specific cases and connect each portfolio example to decisions and verified results.',
+              skills: ['SQL interview problems', 'Statistics and experiment cases', 'Concise stakeholder communication'],
+              projects: ['Prepare two case studies that explain the question, method, checks, recommendation, and limitations.'],
+              certificationsOrCourses: ['Practice mock interviews using current Data Analyst job descriptions in your target market.']
+            }
+          ],
+          keyTools: ['SQL', 'Python', 'pandas', 'Excel or Sheets', 'Power BI or Tableau', 'Git', 'A public dataset source'],
+          capstoneProject: {
+            title: 'End-to-end product analytics case study',
+            description: 'Choose a public dataset, define a business question, validate the data, analyze the results, and present a recommendation with assumptions and limitations clearly stated.',
+            techStack: ['SQL', 'Python', 'pandas', 'Power BI or Tableau', 'Git']
+          }
+        },
+        rawText: 'Built-in Data Analyst roadmap used because AI generation was unavailable.',
+        groundingChunks: []
+      });
+    }
     return res.json({
       data: {
         targetRole,
-        salaryRange: '$175,000 - $245,000 USD (Base + Equity)',
+        salaryRange: 'Varies by location and experience; verify current local market data.',
         timeline: [
           {
             phase: 'Phase 1: Core Systems & Paradigms',
@@ -393,19 +458,12 @@ Output valid JSON:
         keyTools: ['Docker', 'Kubernetes', 'Redis', 'PostgreSQL', 'Kafka', 'Prometheus', 'Grafana'],
         capstoneProject: {
           title: 'Resilient Distributed Stream Mesh',
-          description: `An enterprise-grade event pipeline handling 50,000 events/sec with sub-5ms p99 latency, automated circuit breakers, and zero data loss on failover.`,
+          description: `A portfolio project that demonstrates relevant ${targetRole} skills, trade-offs, validation, and operational thinking.`,
           techStack: ['TypeScript / Go', 'Redis Streams', 'Docker', 'PostgreSQL', 'Prometheus']
         }
       },
-      rawText: 'Career blueprint ready.',
-      groundingChunks: [
-        {
-          web: {
-            title: 'Hiring Benchmark Trends & Engineering Compensation (Levels.fyi)',
-            uri: 'https://levels.fyi'
-          }
-        }
-      ]
+      rawText: 'Built-in career roadmap used because AI generation was unavailable.',
+      groundingChunks: []
     });
   }
 });
@@ -445,7 +503,7 @@ questions. Never invent candidate achievements or metrics; sample answers should
     }
     return res.json({ questions, rawText });
   } catch (err: any) {
-    console.log('Interview questions using instant question bank:', err.message);
+    logAIError('interview-guide', err);
     return res.json({
       questions: [
         {
@@ -548,6 +606,7 @@ Output valid JSON:
     const result = extractJSON(response.text || '{}');
     return res.json(result);
   } catch (err: any) {
+    logAIError('interview-evaluation', err);
     const words = userAnswer.trim().split(/\s+/).filter(Boolean).length;
     const hasEvidence = /\d|%|\$/.test(userAnswer);
     const hasStructure = /\b(first|then|next|because|finally|result)\b/i.test(userAnswer);
@@ -601,6 +660,7 @@ Output valid JSON:
     const result = extractJSON(response.text || '{}');
     return res.json(result);
   } catch (err: any) {
+    logAIError('outreach-kit', err);
     const verifiedHighlight = userHighlight?.trim() || '[Add a specific, verified achievement before sending]';
     return res.json({
       hiringManagerEmail: `Subject: ${role || 'Role'} @ ${company} - Introduction
@@ -655,6 +715,7 @@ Question numbers must run from 1 through 5. Do not include markdown.
     }
     return res.json(result);
   } catch (err: any) {
+    logAIError('custom-aptitude', err);
     const normalizedDomain = domainOrRole.toLowerCase();
     if (/\b(data|analyst|analytics|business intelligence|sql)\b/.test(normalizedDomain)) {
       return res.json([
@@ -819,7 +880,7 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
     if (!reply) throw new Error('Model returned an empty voice response.');
     return res.json({ reply });
   } catch (err: any) {
-    console.log('Voice assistant fell back to local conversational response:', err.message);
+    logAIError('voice-chat', err);
     const lower = message.toLowerCase();
     let reply = "I hear you loud and clear. Focus on quantifying your business impact with the Google XYZ formula: what you accomplished, how it was measured, and the actions you took.";
 
