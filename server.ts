@@ -59,12 +59,24 @@ const extractJSON = (text: string): any => {
 };
 
 // Resilient timeout wrapper to prevent hanging on network delays
-const callWithTimeout = <T>(promise: Promise<T>, timeoutMs = 12000): Promise<T> => {
-  let timer: NodeJS.Timeout;
+const callWithTimeout = async <T>(
+  request: (signal: AbortSignal) => Promise<T>,
+  timeoutMs = 25000
+): Promise<T> => {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('AI generation timed out')), timeoutMs);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('AI generation timed out'));
+    }, timeoutMs);
   });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+
+  try {
+    return await Promise.race([request(controller.signal), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 };
 
 /* -------------------------------------------------------------
@@ -163,12 +175,13 @@ Job Description:
 ${jobDesc.slice(0, 2000)}
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -270,12 +283,13 @@ Output valid JSON:
 }
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -369,12 +383,13 @@ Output valid JSON array:
 ]
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -413,9 +428,37 @@ Output valid JSON array:
           keyPoints: ['Inspect RSS vs Heap allocation trends', 'Generate heap snapshots before and after peak traffic', 'Audit unclosed event listeners or circular reference caches'],
           trapToAvoid: 'Arbitrarily bumping container memory limits without identifying root cause.',
           idealAnswer: 'First, I monitor Prometheus node exporter metrics to verify whether RSS growth is linear. Next, I trigger a canary instance with heap profiling enabled, capture heap dumps at 10-minute intervals, and analyze retainer trees in Chrome DevTools to locate uncollected references—often unbounded in-memory caches or detached event handlers.'
+        },
+        {
+          id: 'q4',
+          type: 'technical',
+          question: `How would you validate a data transformation for a ${role} workflow before releasing it?`,
+          context: 'Tests data quality checks, reproducibility, and safe rollout practices.',
+          keyPoints: ['Define expected inputs and outputs', 'Check nulls, duplicates, ranges, and reconciliation totals', 'Compare results with a known-good sample and monitor after release'],
+          trapToAvoid: 'Checking only that the job completed without an error.',
+          idealAnswer: 'I would document the expected schema and invariants, test representative edge cases, reconcile aggregate totals against a trusted sample, and add monitoring so regressions are visible after release.'
+        },
+        {
+          id: 'q5',
+          type: 'behavioral',
+          question: 'Tell me about a time your analysis changed a project decision. How did you explain the evidence and its limits?',
+          context: 'Evaluates analytical judgment, communication, and appropriate handling of uncertainty.',
+          keyPoints: ['State the decision and the question being tested', 'Explain the evidence and its limitations', 'Describe the decision and the verified outcome'],
+          starGuide: 'Use a real example: Situation, Task, Action, Result. Replace every metric with one you can verify.',
+          trapToAvoid: 'Claiming the analysis proved causation when it only showed correlation.',
+          idealAnswer: 'I would explain the question, the data I trusted, the assumptions I tested, and what the analysis could not establish. I would then connect the evidence to the decision and report only an outcome I can verify.'
+        },
+        {
+          id: 'q6',
+          type: 'architecture',
+          question: `Design a reliable reporting pipeline for a ${role} team that combines data from several changing sources.`,
+          context: 'Tests pipeline design, data contracts, observability, and recovery.',
+          keyPoints: ['Validate source schemas and version changes', 'Make ingestion idempotent and track lineage', 'Monitor freshness and quality, with a replay or recovery path'],
+          trapToAvoid: 'Silently accepting schema drift or publishing stale results as current.',
+          idealAnswer: 'I would define a contract for each source, validate and version incoming data, make each load repeatable, and monitor both freshness and quality. Failed loads should be quarantined with enough lineage to correct and replay them safely.'
         }
       ],
-      rawText: 'Interview question bank ready.'
+      rawText: 'Built-in interview questions were used because AI generation did not complete.'
     });
   }
 });
@@ -443,12 +486,13 @@ Output valid JSON:
 }
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -456,20 +500,19 @@ Output valid JSON:
     const result = extractJSON(response.text || '{}');
     return res.json(result);
   } catch (err: any) {
-    const words = userAnswer.trim().split(/\s+/).length;
-    const hasNumbers = /\d+/.test(userAnswer);
-    const score = Math.min(10, Math.max(6, Math.floor(words / 15) + (hasNumbers ? 2 : 0)));
+    const words = userAnswer.trim().split(/\s+/).filter(Boolean).length;
+    const hasEvidence = /\d|%|\$/.test(userAnswer);
+    const hasStructure = /\b(first|then|next|because|finally|result)\b/i.test(userAnswer);
+    const score = Math.min(8, 4 + Number(words >= 20) + Number(hasEvidence) + Number(hasStructure) + Number(words >= 60));
 
     return res.json({
       score,
-      feedback: hasNumbers 
-        ? 'Solid technical articulation with concrete quantitative figures. Structure could follow the STAR format even more tightly.'
-        : 'Good conceptual foundation, but the explanation lacks quantified metrics and specific production scale numbers.',
+      feedback: `AI evaluation was unavailable, so this is a quick local estimate. The answer has ${words} words${hasEvidence ? ' and includes measurable evidence' : ' but no measurable evidence'}.`,
       improvements: [
-        'State concrete metrics (e.g. "reduced latency by 35%", "handled 10K events/sec")',
+        hasEvidence ? 'Explain how you verified the stated result.' : 'Add a real baseline and outcome only if you can verify them.',
         'Highlight the specific trade-offs and alternative approaches you evaluated'
       ],
-      idealAnswer: `In my previous role, I addressed this by first establishing baseline telemetry metrics. I evaluated two architectures—a distributed cache vs an event streaming queue—and chose the cache because our read-to-write ratio was 9:1. This reduced p99 latency from 180ms to 42ms with zero downtime.`
+      idealAnswer: `A strong ${role || 'candidate'} answer should explain the baseline, the steps taken, the trade-offs considered, and the verified outcome. Use placeholders until you can add your own evidence: "I measured [baseline], changed [specific action], and verified [result]."`
     });
   }
 });
@@ -483,7 +526,9 @@ app.post('/api/outreach/kit', async (req, res) => {
     const ai = getAIClient();
     const prompt = `
 Create high-conversion cold outreach materials for ${role || 'Senior Professional'} at ${company}.
-Key highlight: ${userHighlight || 'Experienced professional with proven track record'}.
+Use only the candidate evidence supplied below. Do not invent experience, company facts, dates, outcomes, or metrics.
+If no evidence is supplied, leave a clear placeholder asking the candidate to add a verified achievement.
+Candidate evidence: ${userHighlight?.trim() || '[Add a specific, verified achievement before sending]'}.
 
 Output valid JSON:
 {
@@ -494,12 +539,13 @@ Output valid JSON:
 }
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -507,22 +553,23 @@ Output valid JSON:
     const result = extractJSON(response.text || '{}');
     return res.json(result);
   } catch (err: any) {
+    const verifiedHighlight = userHighlight?.trim() || '[Add a specific, verified achievement before sending]';
     return res.json({
-      hiringManagerEmail: `Subject: ${role} @ ${company} - Scaling systems & architecture
+      hiringManagerEmail: `Subject: ${role || 'Role'} @ ${company} - Introduction
 
 Hi [Hiring Manager Name],
 
-I noticed ${company}'s recent initiatives expanding your engineering platforms. 
+I'm interested in the ${role || 'open'} opportunity at ${company}.
 
-In my recent work, I specialized in high-throughput architectures and led projects that reduced query latency by 40% while cutting infrastructure costs by $120K/year. Given ${company}'s current growth phase, I'd love to share a few actionable thoughts on scaling your backend pipelines.
+My relevant experience includes: ${verifiedHighlight}
 
-Do you have 10 minutes next Tuesday or Wednesday for a brief sync?
+If it aligns with your team's needs, I'd welcome a brief conversation.
 
 Best,
 [Your Name] | [Portfolio Link]`,
-      linkedinConnectionNote: `Hi [Name], I've been following ${company}'s engineering work on distributed systems. As a ${role} specializing in scalable architecture, I'd love to connect and follow your updates!`,
-      recruiterMessage: `Hi [Recruiter Name], I saw the ${role} opening at ${company}. With 6+ years shipping high-availability services and leading distributed systems pods, my background directly matches your requirements. I'd love to discuss how I can contribute immediately.`,
-      thirtySixtyNinetySummary: `• Days 1-30: Complete codebase deep dive, establish team rapport, ship first non-trivial production PR, and map system bottlenecks.\n• Days 31-60: Lead feature design document for critical sprint milestone, optimize CI/CD test runtimes, and mentor team members.\n• Days 61-90: Deliver measurable business KPI (e.g. 25% throughput increase), institute automated load tests, and partner with product managers on the next quarterly roadmap.`
+      linkedinConnectionNote: `Hi [Name], I'm exploring the ${role || 'open'} opportunity at ${company} and would value connecting to learn more about the team's work.`,
+      recruiterMessage: `Hi [Recruiter Name], I'm interested in the ${role || 'open'} opportunity at ${company}. My relevant experience includes: ${verifiedHighlight} I'd welcome a conversation about how this background fits the role.`,
+      thirtySixtyNinetySummary: '• Days 1-30: Learn the team’s goals, data sources, and current processes; agree on a baseline.\n• Days 31-60: Deliver a prioritized analysis or improvement and review it with stakeholders.\n• Days 61-90: Measure the outcome, share findings, and propose evidence-based next steps.'
     });
   }
 });
@@ -551,12 +598,13 @@ Output valid JSON array:
 ]
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          abortSignal
         }
       })
     );
@@ -564,6 +612,52 @@ Output valid JSON array:
     const result = extractJSON(response.text || '[]');
     return res.json(result);
   } catch (err: any) {
+    const normalizedDomain = domainOrRole.toLowerCase();
+    if (/\b(data|analyst|analytics|business intelligence|sql)\b/.test(normalizedDomain)) {
+      return res.json([
+        {
+          questionNumber: 1,
+          category: 'Technical',
+          question: 'A SQL join doubles the number of order rows. What should you check first?',
+          options: { A: 'Remove duplicate rows without inspection', B: 'Verify key uniqueness and the join cardinality', C: 'Replace SUM with AVG', D: 'Filter out the largest orders' },
+          correctAnswer: 'B',
+          explanation: 'A one-to-many join can multiply rows. Check key uniqueness and cardinality before changing or excluding data.'
+        },
+        {
+          questionNumber: 2,
+          category: 'Technical',
+          question: 'A new source has many null customer segments. What is the best first step?',
+          options: { A: 'Replace all nulls with the most common segment', B: 'Measure where the nulls occur and trace the source mapping', C: 'Drop every row with a null', D: 'Treat null as zero' },
+          correctAnswer: 'B',
+          explanation: 'Measure missingness by source and time, then trace the mapping before choosing an imputation or exclusion rule.'
+        },
+        {
+          questionNumber: 3,
+          category: 'Quantitative',
+          question: 'An experiment shows a higher conversion rate in group B, but the groups have different sizes. What should you examine?',
+          options: { A: 'Only the raw number of conversions', B: 'The chart color', C: 'Randomization, sample size, and uncertainty around the rate difference', D: 'The largest customer account' },
+          correctAnswer: 'C',
+          explanation: 'Rates should be compared with a valid experiment design and enough data to assess uncertainty, not just raw totals.'
+        },
+        {
+          questionNumber: 4,
+          category: 'Quantitative',
+          question: 'A revenue chart drops after a metric definition changes. What should you do first?',
+          options: { A: 'Reconcile the old and new definitions on the same source data', B: 'Hide the chart', C: 'Assume revenue fell', D: 'Change the y-axis until the lines look similar' },
+          correctAnswer: 'A',
+          explanation: 'Reconcile definitions, filters, and source data before attributing a change to business performance.'
+        },
+        {
+          questionNumber: 5,
+          category: 'Logic',
+          question: 'Customers who use a feature retain better. What evidence would best support the claim that the feature caused better retention?',
+          options: { A: 'A larger observational chart', B: 'A quote from one customer', C: 'A before-and-after comparison without controls', D: 'A randomized experiment or a defensible quasi-experimental design' },
+          correctAnswer: 'D',
+          explanation: 'A controlled design helps separate the feature’s effect from selection bias and other changes over time.'
+        }
+      ]);
+    }
+
     return res.json([
       {
         questionNumber: 1,
@@ -670,10 +764,11 @@ Candidate just said:
 Spoken Response (plain conversational prose, 2-4 sentences max):
 `;
 
-    const response = await callWithTimeout(
+    const response = await callWithTimeout((abortSignal) =>
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
+        config: { abortSignal }
       })
     );
 
