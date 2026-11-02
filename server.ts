@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,7 +61,7 @@ const extractJSON = (text: string): any => {
 // Resilient timeout wrapper to prevent hanging on network delays
 const callWithTimeout = async <T>(
   request: (signal: AbortSignal) => Promise<T>,
-  timeoutMs = 25000
+  timeoutMs = 55000
 ): Promise<T> => {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -76,6 +76,59 @@ const callWithTimeout = async <T>(
     return await Promise.race([request(controller.signal), timeoutPromise]);
   } finally {
     if (timer) clearTimeout(timer);
+  }
+};
+
+const interviewGuideSchema = {
+  type: Type.ARRAY,
+  minItems: '6',
+  maxItems: '6',
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      id: { type: Type.STRING },
+      type: { type: Type.STRING, format: 'enum', enum: ['technical', 'behavioral', 'architecture'] },
+      question: { type: Type.STRING },
+      context: { type: Type.STRING },
+      keyPoints: { type: Type.ARRAY, minItems: '3', maxItems: '5', items: { type: Type.STRING } },
+      starGuide: { type: Type.STRING },
+      trapToAvoid: { type: Type.STRING },
+      idealAnswer: { type: Type.STRING }
+    },
+    required: ['id', 'type', 'question', 'context', 'keyPoints', 'trapToAvoid', 'idealAnswer']
+  }
+};
+
+const interviewEvaluationSchema = {
+  type: Type.OBJECT,
+  properties: {
+    score: { type: Type.INTEGER, minimum: 1, maximum: 10 },
+    feedback: { type: Type.STRING },
+    improvements: { type: Type.ARRAY, minItems: '2', maxItems: '4', items: { type: Type.STRING } },
+    idealAnswer: { type: Type.STRING }
+  },
+  required: ['score', 'feedback', 'improvements', 'idealAnswer']
+};
+
+const customAptitudeSchema = {
+  type: Type.ARRAY,
+  minItems: '5',
+  maxItems: '5',
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      questionNumber: { type: Type.INTEGER, minimum: 1, maximum: 5 },
+      category: { type: Type.STRING },
+      question: { type: Type.STRING },
+      options: {
+        type: Type.OBJECT,
+        properties: { A: { type: Type.STRING }, B: { type: Type.STRING }, C: { type: Type.STRING }, D: { type: Type.STRING } },
+        required: ['A', 'B', 'C', 'D']
+      },
+      correctAnswer: { type: Type.STRING, format: 'enum', enum: ['A', 'B', 'C', 'D'] },
+      explanation: { type: Type.STRING }
+    },
+    required: ['questionNumber', 'category', 'question', 'options', 'correctAnswer', 'explanation']
   }
 };
 
@@ -367,20 +420,10 @@ app.post('/api/interview/guide', async (req, res) => {
   try {
     const ai = getAIClient();
     const prompt = `
-Generate 6 elite interview questions for the role of: ${role}.
-Output valid JSON array:
-[
-  {
-    "id": "q1",
-    "type": "technical" | "behavioral" | "architecture",
-    "question": "<Precise interview question asked by tier-1 tech firms>",
-    "context": "<Why this question is asked and what the interviewer tests>",
-    "keyPoints": ["Point 1", "Point 2", "Point 3"],
-    "starGuide": "<For behavioral: Specific Situation, Task, Action, Result pointers>",
-    "trapToAvoid": "<Common rookie mistake or red flag>",
-    "idealAnswer": "<A world-class, model answer demonstration that scores 10/10>"
-  }
-]
+Generate exactly 6 distinct, role-specific interview questions for ${role}.
+Mix technical, behavioral, and architecture questions where appropriate. Give concise but useful context,
+3-5 key points, a common trap, and a realistic sample answer for each question. Include starGuide for behavioral
+questions. Never invent candidate achievements or metrics; sample answers should be clearly illustrative.
 `;
 
     const response = await callWithTimeout((abortSignal) =>
@@ -389,6 +432,8 @@ Output valid JSON array:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
+          responseSchema: interviewGuideSchema,
+          maxOutputTokens: 1800,
           abortSignal
         }
       })
@@ -396,6 +441,9 @@ Output valid JSON array:
 
     const rawText = response.text || '';
     const questions = extractJSON(rawText);
+    if (!Array.isArray(questions) || questions.length !== 6) {
+      throw new Error('Model returned an incomplete interview guide.');
+    }
     return res.json({ questions, rawText });
   } catch (err: any) {
     console.log('Interview questions using instant question bank:', err.message);
@@ -404,39 +452,39 @@ Output valid JSON array:
         {
           id: 'q1',
           type: 'architecture',
-          question: `How would you architect a distributed rate-limiting and throttle system for ${role} API services handling 500,000 requests per second?`,
-          context: 'Assesses understanding of distributed state, clock skew, Redis latency bottlenecks, and sliding window algorithms.',
-          keyPoints: ['Sliding window counter in Redis', 'Atomic Lua scripts to prevent race conditions', 'Tiered local memory token buckets to protect Redis clusters'],
-          trapToAvoid: 'Relying on single in-memory instances or unbounded lock contention.',
-          idealAnswer: 'I would architect a tiered rate limiter: each edge proxy uses an in-memory token bucket that batches increments to a centralized Redis cluster via atomic Lua scripts every 50ms. This prevents hotspotting Redis at 500K QPS while enforcing strict tenant quotas with standard 429 headers and Retry-After metadata.'
+          question: `How would you approach a difficult problem central to a ${role} role, from clarifying the goal through validating the result?`,
+          context: 'Assesses structured problem solving, domain knowledge, validation, and communication.',
+          keyPoints: ['Clarify the goal and constraints', 'Explain the chosen method and trade-offs', 'Describe how you would validate the result'],
+          trapToAvoid: 'Jumping to a solution before confirming the problem and success criteria.',
+          idealAnswer: 'I would first confirm the desired outcome and constraints, then break the problem into testable steps. I would compare reasonable approaches, validate the result against the original goal, and communicate any assumptions or remaining risks.'
         },
         {
           id: 'q2',
           type: 'behavioral',
-          question: 'Describe a high-stakes disagreement with senior engineering leadership regarding a technical architectural decision.',
-          context: 'Tests ownership, data-driven persuasion, professional maturity, and willingness to disagree and commit.',
-          keyPoints: ['Framed around objective data and user impact rather than ego', 'Built a quick prototype / proof of concept', 'Aligned on shared business KPIs'],
-          starGuide: 'Situation: Debate over microservices vs modular monolith. Task: Reach consensus before Q3 sprint. Action: Ran benchmark test on latency and deployment overhead. Result: Saved 3 months of refactoring time.',
-          trapToAvoid: 'Portraying coworkers as adversarial or failing to present concrete empirical data.',
-          idealAnswer: 'When leadership considered rewriting our core service in a new framework, I authored a concise 2-page decision memo with synthetic load tests demonstrating that 80% of our latency came from un-indexed database queries rather than language runtime. We optimized the database layer instead, saving 4 months of engineering effort and achieving a 60% speedup.'
+          question: 'Tell me about a disagreement with a teammate and how you reached a constructive outcome.',
+          context: 'Tests listening, evidence-based communication, and collaboration under disagreement.',
+          keyPoints: ['Explain the different viewpoints fairly', 'Describe the evidence or criteria used to decide', 'Share the outcome and what you learned'],
+          starGuide: 'Use a real example: Situation, Task, Action, Result. Describe your contribution and use only outcomes you can verify.',
+          trapToAvoid: 'Blaming the other person or claiming an outcome you cannot support.',
+          idealAnswer: 'I would explain the shared goal, summarize both viewpoints fairly, and agree on criteria for comparing the options. I would share the evidence I had, listen to the other person’s concerns, and support the final decision while checking whether it achieved the intended result.'
         },
         {
           id: 'q3',
           type: 'technical',
-          question: 'How do you detect, isolate, and debug a subtle memory leak causing container restarts under production load?',
-          context: 'Evaluates production observability, heap profiling, garbage collection metrics, and diagnostic methodology.',
-          keyPoints: ['Inspect RSS vs Heap allocation trends', 'Generate heap snapshots before and after peak traffic', 'Audit unclosed event listeners or circular reference caches'],
-          trapToAvoid: 'Arbitrarily bumping container memory limits without identifying root cause.',
-          idealAnswer: 'First, I monitor Prometheus node exporter metrics to verify whether RSS growth is linear. Next, I trigger a canary instance with heap profiling enabled, capture heap dumps at 10-minute intervals, and analyze retainer trees in Chrome DevTools to locate uncollected references—often unbounded in-memory caches or detached event handlers.'
+          question: `A result or deliverable in a ${role} project looks wrong. How would you investigate the cause and decide what to do next?`,
+          context: 'Evaluates diagnostic reasoning, use of evidence, and clear communication of uncertainty.',
+          keyPoints: ['Confirm the expected outcome and reproduce the issue', 'Check assumptions, inputs, and recent changes', 'Verify a correction before communicating completion'],
+          trapToAvoid: 'Hiding uncertainty or changing several things before identifying the cause.',
+          idealAnswer: 'I would first reproduce the issue and compare the result with the agreed expectation. Then I would inspect the inputs, assumptions, and recent changes, test one likely cause at a time, and verify the correction with a representative case before sharing the result and any remaining uncertainty.'
         },
         {
           id: 'q4',
           type: 'technical',
-          question: `How would you validate a data transformation for a ${role} workflow before releasing it?`,
-          context: 'Tests data quality checks, reproducibility, and safe rollout practices.',
-          keyPoints: ['Define expected inputs and outputs', 'Check nulls, duplicates, ranges, and reconciliation totals', 'Compare results with a known-good sample and monitor after release'],
-          trapToAvoid: 'Checking only that the job completed without an error.',
-          idealAnswer: 'I would document the expected schema and invariants, test representative edge cases, reconcile aggregate totals against a trusted sample, and add monitoring so regressions are visible after release.'
+          question: `How would you validate an important ${role} deliverable before sharing or releasing it?`,
+          context: 'Tests acceptance criteria, quality checks, and safe communication of limitations.',
+          keyPoints: ['Confirm the requirements and success criteria', 'Check representative and edge cases', 'Compare the result with a trusted source or expected outcome'],
+          trapToAvoid: 'Treating completion as proof that the work is correct.',
+          idealAnswer: 'I would confirm the acceptance criteria, review representative and edge cases, and compare the result with a trusted source or expected outcome. Before sharing it, I would document assumptions and any limitations that affect how it should be used.'
         },
         {
           id: 'q5',
@@ -451,11 +499,11 @@ Output valid JSON array:
         {
           id: 'q6',
           type: 'architecture',
-          question: `Design a reliable reporting pipeline for a ${role} team that combines data from several changing sources.`,
-          context: 'Tests pipeline design, data contracts, observability, and recovery.',
-          keyPoints: ['Validate source schemas and version changes', 'Make ingestion idempotent and track lineage', 'Monitor freshness and quality, with a replay or recovery path'],
-          trapToAvoid: 'Silently accepting schema drift or publishing stale results as current.',
-          idealAnswer: 'I would define a contract for each source, validate and version incoming data, make each load repeatable, and monitor both freshness and quality. Failed loads should be quarantined with enough lineage to correct and replay them safely.'
+          question: `Design a reliable workflow for a ${role} team that depends on several changing inputs.`,
+          context: 'Tests planning, quality controls, ownership, and recovery when assumptions change.',
+          keyPoints: ['Make inputs and assumptions visible', 'Add checks at important handoffs', 'Provide a clear way to detect and recover from failures'],
+          trapToAvoid: 'Allowing stale or incomplete inputs to pass without signaling a problem.',
+          idealAnswer: 'I would document the inputs and their owners, add checks at each important handoff, and make the process repeatable. I would monitor for incomplete or stale inputs and define how to pause, correct, and safely resume the workflow.'
         }
       ],
       rawText: 'Built-in interview questions were used because AI generation did not complete.'
@@ -479,7 +527,7 @@ Candidate Answer: "${userAnswer}"
 
 Output valid JSON:
 {
-  "score": <number 1-10>,
+  "score": 7,
   "feedback": "<Concise 2-3 sentence assessment>",
   "improvements": ["<Improvement 1>", "<Improvement 2>"],
   "idealAnswer": "<An elevated revision demonstrating maximum executive presence>"
@@ -492,6 +540,8 @@ Output valid JSON:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
+          responseSchema: interviewEvaluationSchema,
+          maxOutputTokens: 800,
           abortSignal
         }
       })
@@ -584,18 +634,9 @@ app.post('/api/aptitude/custom', async (req, res) => {
   try {
     const ai = getAIClient();
     const prompt = `
-Generate 5 challenging multiple choice questions for ${domainOrRole}.
-Output valid JSON array:
-[
-  {
-    "questionNumber": 1,
-    "category": "Technical",
-    "question": "<Question prompt>",
-    "options": { "A": "<Option A>", "B": "<Option B>", "C": "<Option C>", "D": "<Option D>" },
-    "correctAnswer": "A",
-    "explanation": "<Step by step solution>"
-  }
-]
+Generate exactly 5 challenging multiple-choice questions for ${domainOrRole}.
+Vary the concepts. Each must have four plausible options, one unambiguous correct answer, and a concise explanation.
+Question numbers must run from 1 through 5. Do not include markdown.
 `;
 
     const response = await callWithTimeout((abortSignal) =>
@@ -604,12 +645,17 @@ Output valid JSON array:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
+          responseSchema: customAptitudeSchema,
+          maxOutputTokens: 1500,
           abortSignal
         }
       })
     );
 
     const result = extractJSON(response.text || '[]');
+    if (!Array.isArray(result) || result.length !== 5) {
+      throw new Error('Model returned an incomplete aptitude question set.');
+    }
     return res.json(result);
   } catch (err: any) {
     const normalizedDomain = domainOrRole.toLowerCase();
@@ -768,11 +814,12 @@ Spoken Response (plain conversational prose, 2-4 sentences max):
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
-        config: { abortSignal }
+        config: { maxOutputTokens: 256, abortSignal }
       })
     );
 
     const reply = (response.text || '').replace(/[*_#`]/g, '').trim();
+    if (!reply) throw new Error('Model returned an empty voice response.');
     return res.json({ reply });
   } catch (err: any) {
     console.log('Voice assistant fell back to local conversational response:', err.message);
