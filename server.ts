@@ -737,7 +737,7 @@ export default app;
 
 // Vercel imports this Express app as a function; other Node hosts start the listener.
 const isDirectExecution = process.argv[1] != null && path.resolve(process.argv[1]) === __filename;
-if (isDirectExecution) {
+if (process.env.VERCEL !== '1' && isDirectExecution) {
   startServer().catch((err) => {
     console.error('Failed to start server:', err);
     process.exit(1);
